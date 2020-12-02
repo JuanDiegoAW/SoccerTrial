@@ -80,20 +80,24 @@ public class ThrowBall : MonoBehaviour
                 this.CompareActualTouchToHighestCurves(actualTouch);
             }
         }
-        // If the user is not touching the screen, the ball is in movement and if the ball trajectory needs to be curved
-        else if (isBallInMovement && isBallThrowCurved)
+        // If the ball is in movement 
+        else if (isBallInMovement)
         {
-            float timeElapsed = (Time.time - movementStartTime)/ swipeIntervalTime;
-            // If the time elapsed since the ball was shot is still in range, we apply the curved effect to the ball
-            if (timeElapsed <= 0.9f)
+            // If the ball trajectory still needs to be curved
+            if (isBallThrowCurved)
             {
-                this.CurveQuadraticBall(timeElapsed, curveData);
-            }
-            // If enough time has passed to fully curve the ball, we see if it is necessary to apply the last force in the X axis to it
-            else if (!isLastForceApplied)
-            {
-                isLastForceApplied = true;
-                ballRigidBody.AddForce(-(curveData.middleVector - swipeEndPosition).x / 10, 0 ,0);
+                float timeElapsed = (Time.time - movementStartTime)/ swipeIntervalTime;
+                // If the time elapsed since the ball was shot is still in range, we apply the curved effect to the ball
+                if (timeElapsed <= 0.9f)
+                {
+                    this.CurveQuadraticBall(timeElapsed, curveData);
+                }
+                // If enough time has passed to fully curve the ball, we see if it is necessary to apply the last force in the X axis to it
+                else if (!isLastForceApplied)
+                {
+                    isLastForceApplied = true;
+                    ballRigidBody.AddForce(-(curveData.middleVector - swipeEndPosition).x / 10, 0 ,0);
+                }
             }
         }
     }
