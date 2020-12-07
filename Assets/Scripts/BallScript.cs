@@ -57,8 +57,6 @@ public class BallScript : MonoBehaviour
     // Variable that indicates how strong the shot is in the Z axis
     [SerializeField] private float throwForceZ;
 
-    private float raycastDepth;
-
     // Lives of the player
     [SerializeField] private int startingLives;
     private int currentLives;
@@ -71,6 +69,10 @@ public class BallScript : MonoBehaviour
 
     // Trail renderer of the gameobject
     private TrailRenderer trailRenderer;
+
+
+    RaycastHit objectCollided;
+    Ray touchRay;
 
     // Start is called before the first frame update
     void Start()
@@ -95,21 +97,17 @@ public class BallScript : MonoBehaviour
                 // We see if the user is starting to touch the screen
                 if (actualTouch.phase == TouchPhase.Began)
                 {
-
-
-                    this.GetTouchStartData(actualTouch);
+                    this.TouchBegan(actualTouch);     
                 }
+                // Else, we see if the user is ending to touch the screen
+                else if (actualTouch.phase == TouchPhase.Ended)
+                {
+                    this.TouchEnded(actualTouch);
+                }
+                // Else, the user is in the middle of the touch
                 else
                 {
-                    // We register the current touch position to see if it formes a curve
-                    this.CompareActualTouchToHighestCurves(actualTouch);
-                    // Else, we see if the user is ending to touch the screen
-                    if (actualTouch.phase == TouchPhase.Ended)
-                    {
-                        this.GetTouchEndData(actualTouch);
-                        this.CalculateBallDirectionAndShoot();
-                        this.StartCoroutine(AwaitToSpawnBall());   
-                    }
+                    this.TouchInProgress(actualTouch);
                 }
             }
             // If the ball is in movement and the throw is curved
@@ -129,6 +127,68 @@ public class BallScript : MonoBehaviour
                 }
             }
         }
+    }
+
+    // Method that defines what happens when a user is starting to touch the screen
+    private void TouchBegan(Touch actualTouch)
+    {
+        if (this.IsTouchOverBall(actualTouch))
+        {
+            this.GetTouchStartData(actualTouch);
+        }
+        else
+        {
+            isBallRepositioned = true;
+            this.RepositionBallInXAxis(actualTouch.position.x);
+        }
+    }
+
+    // Method that defines what happens when a user is ending to touch the screen
+    private void TouchEnded(Touch actualTouch)
+    {
+        if (isBallRepositioned)
+            isBallRepositioned = false;     
+        else
+        {
+            this.CompareActualTouchToHighestCurves(actualTouch);
+            this.GetTouchEndData(actualTouch);
+            this.CalculateBallDirectionAndShoot();
+            this.StartCoroutine(AwaitToSpawnBall());
+        }
+    }
+
+    // Method that defines what happens when a user is in the middle of touching the screen
+    private void TouchInProgress(Touch actualTouch)
+    {
+        if (!isBallRepositioned)
+        {
+            // We register the current touch position to see if it formes a curve
+            this.CompareActualTouchToHighestCurves(actualTouch);
+        }
+        else
+        {
+            this.RepositionBallInXAxis(actualTouch.position.x);
+        }
+    }
+
+    private bool IsTouchOverBall(Touch touch)
+    {
+        touchRay = Camera.main.ScreenPointToRay(touch.position);
+        if (Physics.Raycast(touchRay, out objectCollided))
+        {
+            if (objectCollided.collider.gameObject.tag == TagsEnum.GameObjectTags.Player.ToString())
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void RepositionBallInXAxis(float xPosition)
+    {
+        float newXPosition = Camera.main.ScreenToWorldPoint(new Vector3(xPosition, 1, 1)).x;
+        gameObject.transform.position += new Vector3(newXPosition - gameObject.transform.position.x, 0f, 0f);
+        trailRenderer.Clear();
     }
 
     // Method to verify a player is alive
