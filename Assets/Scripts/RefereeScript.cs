@@ -44,10 +44,8 @@ public class RefereeScript : MonoBehaviour
             countdownStartTime = countdownTime;
             countdownDisplay.text = countdownTime.ToString();
             StartCoroutine(LevelCountdown());
-
-            // Set the texture, size and animation of the cards
-            this.InitializeCards(cardTexture);        
-        }
+        }// Set the texture, size and animation of the cards
+        this.InitializeCards(cardTexture);
         // Make yellow cards not visible at the beginning      
         this.DisableAllCards();
     }
@@ -76,10 +74,13 @@ public class RefereeScript : MonoBehaviour
     // Method to restart the countdown timer, and make it start ticking again
     public void RestartTimer()
     {
-        countdownTime = countdownStartTime;
-        countdownDisplay.text = countdownTime.ToString();
-        stopCountdown = false;
-        StartCoroutine(LevelCountdown());
+        if (isCountdownActive)
+        {
+            countdownTime = countdownStartTime;
+            countdownDisplay.text = countdownTime.ToString();
+            stopCountdown = false;
+            StartCoroutine(LevelCountdown());
+        }     
     }
 
     // Corutine that will make the timer tick down and respond accordingly
@@ -125,6 +126,11 @@ public class RefereeScript : MonoBehaviour
         {
             //Game over
         }
+    }
+
+    public bool GetIsCountdownActive()
+    {
+        return isCountdownActive;
     }
 
     private void SpawnCard(int i)

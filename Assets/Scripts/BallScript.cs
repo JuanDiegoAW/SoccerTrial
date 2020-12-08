@@ -44,6 +44,8 @@ public class BallScript : MonoBehaviour
     // Boolean that indicates if a user ineraction was to reposition the ball or to shoot it
     private bool isBallRepositioned = false;
 
+    private bool isTouchPhaseEnded = false;
+
     // Variable that will contain the data of the curved shot
     private QuadraticCurveData curveData;
 
@@ -62,7 +64,11 @@ public class BallScript : MonoBehaviour
     private int currentLives;
     [SerializeField] private int respawnTime;
 
-    [SerializeField] private Text timeTouchText;
+    [SerializeField] private Text startTouchVector;
+    [SerializeField] private Text endTouchVector;
+    [SerializeField] private Text curveLeftVector;
+    [SerializeField] private Text curveRightVector;
+    [SerializeField] private Text directionTouchVector;
 
     // GameObject with the behaviour of the goal
     private GameObject referee;
@@ -70,9 +76,12 @@ public class BallScript : MonoBehaviour
     // Trail renderer of the gameobject
     private TrailRenderer trailRenderer;
 
-
+    // Object hit by the raycast
     RaycastHit objectCollided;
+    // Ray that determines if the user taps the ball or not
     Ray touchRay;
+
+    
 
     // Start is called before the first frame update
     void Start()
@@ -105,7 +114,7 @@ public class BallScript : MonoBehaviour
                     this.TouchEnded(actualTouch);
                 }
                 // Else, the user is in the middle of the touch
-                else
+                else if (!isTouchPhaseEnded)
                 {
                     this.TouchInProgress(actualTouch);
                 }
@@ -132,6 +141,7 @@ public class BallScript : MonoBehaviour
     // Method that defines what happens when a user is starting to touch the screen
     private void TouchBegan(Touch actualTouch)
     {
+        isTouchPhaseEnded = false;
         if (this.IsTouchOverBall(actualTouch))
         {
             this.GetTouchStartData(actualTouch);
@@ -146,6 +156,7 @@ public class BallScript : MonoBehaviour
     // Method that defines what happens when a user is ending to touch the screen
     private void TouchEnded(Touch actualTouch)
     {
+        isTouchPhaseEnded = true;        
         if (isBallRepositioned)
             isBallRepositioned = false;     
         else
@@ -202,11 +213,11 @@ public class BallScript : MonoBehaviour
     {
         if (touch.position.x > swipeCurveRight.x)
         {
-            swipeCurveRight = touch.position;
+            swipeCurveRight = touch.position;            
         }
         else if (touch.position.x < swipeCurveLeft.x)
         {
-            swipeCurveLeft = touch.position;
+            swipeCurveLeft = touch.position;          
         }
     }
 
@@ -217,6 +228,8 @@ public class BallScript : MonoBehaviour
         swipeStartPosition = touch.position;
         swipeCurveRight = touch.position;
         swipeCurveLeft = touch.position;
+
+        startTouchVector.text = $"S x: {swipeStartPosition.x} y: {swipeStartPosition.y}";
     }
 
     // Method to save the final thata when the user ends the swipe movement
@@ -225,7 +238,10 @@ public class BallScript : MonoBehaviour
         swipeIntervalTime = Time.time - this.swipeStartTime;
         swipeEndPosition = touch.position;
         overallSwipeDirection = swipeStartPosition - swipeEndPosition;
-        timeTouchText.text = swipeIntervalTime.ToString();
+
+        endTouchVector.text = $"E x: {swipeEndPosition.x} y: {swipeEndPosition.y}";
+        curveLeftVector.text = $"L x: {swipeCurveLeft.x} y: {swipeCurveLeft.y}";
+        curveRightVector.text = $"R x: {swipeCurveRight.x} y: {swipeCurveRight.y}";
     }
 
     // Mehotd to calculate if a shot needs to be curved, and it what direction, or if the shot needs to be straight (and its direction too)
@@ -238,12 +254,14 @@ public class BallScript : MonoBehaviour
             if (swipeCurveRight.y >= swipeEndPosition.y)
             {
                 this.ShootStraightBall();
+                directionTouchVector.text = "Straight shot";
             }
             // Or if the shot needs to be curved
             else
             {
                 swipeCurveRight.x += (swipeCurveRight.x - swipeStartPosition.x);
                 this.ShootCurvedBall(swipeCurveRight);
+                directionTouchVector.text = "Curved right";
             }
         }
         // Else, the ball went to the left
@@ -253,12 +271,14 @@ public class BallScript : MonoBehaviour
             if (swipeCurveLeft.y >= swipeEndPosition.y)
             {
                 this.ShootStraightBall();
+                directionTouchVector.text = "Straight shot";
             }
             // Or if the shot needs to be curved
             else
             {
                 swipeCurveLeft.x -= (swipeStartPosition.x - swipeCurveLeft.x);
-                this.ShootCurvedBall(swipeCurveLeft);                
+                this.ShootCurvedBall(swipeCurveLeft);
+                directionTouchVector.text = "Curved left";
             }
         }
     }
@@ -271,9 +291,9 @@ public class BallScript : MonoBehaviour
         ballRigidBody.isKinematic = false;
 
         ballRigidBody.AddForce(
-            -overallSwipeDirection.x * throwForceX,
-            -overallSwipeDirection.y * throwForceY,
-            -overallSwipeDirection.y * throwForceZ / swipeIntervalTime
+            (-overallSwipeDirection.x * throwForceX),
+            (-overallSwipeDirection.y * throwForceY),
+            (-overallSwipeDirection.y * throwForceZ / swipeIntervalTime)
         );
 
         // We register the time when the ball was shot
@@ -290,8 +310,8 @@ public class BallScript : MonoBehaviour
 
         ballRigidBody.AddForce(
             0f, 
-            -overallSwipeDirection.y * throwForceY,
-            -overallSwipeDirection.y * throwForceZ / swipeIntervalTime
+            (-overallSwipeDirection.y * throwForceY),
+            (-overallSwipeDirection.y * throwForceZ / swipeIntervalTime)
         );
 
         // We register the time when the ball was shot
