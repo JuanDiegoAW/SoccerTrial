@@ -64,14 +64,10 @@ public class BallScript : MonoBehaviour
     private int currentLives;
     [SerializeField] private int respawnTime;
 
-    [SerializeField] private Text startTouchVector;
-    [SerializeField] private Text endTouchVector;
-    [SerializeField] private Text curveLeftVector;
-    [SerializeField] private Text curveRightVector;
-    [SerializeField] private Text directionTouchVector;
-
-    // GameObject with the behaviour of the goal
+    // GameObject with the behaviour of the referee
     private GameObject referee;
+    // GameObject with the behaviour of the goal
+    private GameObject goal;
 
     // Trail renderer of the gameobject
     private TrailRenderer trailRenderer;
@@ -79,9 +75,7 @@ public class BallScript : MonoBehaviour
     // Object hit by the raycast
     RaycastHit objectCollided;
     // Ray that determines if the user taps the ball or not
-    Ray touchRay;
-
-    
+    Ray touchRay; 
 
     // Start is called before the first frame update
     void Start()
@@ -90,6 +84,7 @@ public class BallScript : MonoBehaviour
         ballRigidBody = GetComponent<Rigidbody>();
         trailRenderer = gameObject.GetComponent<TrailRenderer>();
         referee = GameObject.FindGameObjectWithTag(TagsEnum.GameObjectTags.Referee.ToString());
+        goal = GameObject.FindGameObjectWithTag(TagsEnum.GameObjectTags.Goal.ToString());
         currentLives = startingLives;
     }
 
@@ -182,6 +177,7 @@ public class BallScript : MonoBehaviour
         }
     }
 
+    // Method that defines if a user's touch is over the ball or not
     private bool IsTouchOverBall(Touch touch)
     {
         touchRay = Camera.main.ScreenPointToRay(touch.position);
@@ -195,6 +191,7 @@ public class BallScript : MonoBehaviour
         return false;
     }
 
+    // Method to reposition the ball in the X Axis
     private void RepositionBallInXAxis(float xPosition)
     {
         float newXPosition = Camera.main.ScreenToWorldPoint(new Vector3(xPosition, 1, 1)).x;
@@ -228,8 +225,6 @@ public class BallScript : MonoBehaviour
         swipeStartPosition = touch.position;
         swipeCurveRight = touch.position;
         swipeCurveLeft = touch.position;
-
-        startTouchVector.text = $"S x: {swipeStartPosition.x} y: {swipeStartPosition.y}";
     }
 
     // Method to save the final thata when the user ends the swipe movement
@@ -238,10 +233,6 @@ public class BallScript : MonoBehaviour
         swipeIntervalTime = Time.time - this.swipeStartTime;
         swipeEndPosition = touch.position;
         overallSwipeDirection = swipeStartPosition - swipeEndPosition;
-
-        endTouchVector.text = $"E x: {swipeEndPosition.x} y: {swipeEndPosition.y}";
-        curveLeftVector.text = $"L x: {swipeCurveLeft.x} y: {swipeCurveLeft.y}";
-        curveRightVector.text = $"R x: {swipeCurveRight.x} y: {swipeCurveRight.y}";
     }
 
     // Mehotd to calculate if a shot needs to be curved, and it what direction, or if the shot needs to be straight (and its direction too)
@@ -254,14 +245,12 @@ public class BallScript : MonoBehaviour
             if (swipeCurveRight.y >= swipeEndPosition.y)
             {
                 this.ShootStraightBall();
-                directionTouchVector.text = "Straight shot";
             }
             // Or if the shot needs to be curved
             else
             {
                 swipeCurveRight.x += (swipeCurveRight.x - swipeStartPosition.x);
                 this.ShootCurvedBall(swipeCurveRight);
-                directionTouchVector.text = "Curved right";
             }
         }
         // Else, the ball went to the left
@@ -271,14 +260,12 @@ public class BallScript : MonoBehaviour
             if (swipeCurveLeft.y >= swipeEndPosition.y)
             {
                 this.ShootStraightBall();
-                directionTouchVector.text = "Straight shot";
             }
             // Or if the shot needs to be curved
             else
             {
                 swipeCurveLeft.x -= (swipeStartPosition.x - swipeCurveLeft.x);
                 this.ShootCurvedBall(swipeCurveLeft);
-                directionTouchVector.text = "Curved left";
             }
         }
     }
@@ -291,7 +278,7 @@ public class BallScript : MonoBehaviour
         ballRigidBody.isKinematic = false;
 
         ballRigidBody.AddForce(
-            (-overallSwipeDirection.x * throwForceX),
+            /*xOffset +*/ (-overallSwipeDirection.x * throwForceX),
             (-overallSwipeDirection.y * throwForceY),
             (-overallSwipeDirection.y * throwForceZ / swipeIntervalTime)
         );
@@ -378,11 +365,13 @@ public class BallScript : MonoBehaviour
         currentLives = startingLives;
     }
 
+    // Method to set if the spawn is canceled
     public void SetIsRespawnCanceled(bool isRespawnCancelled)
     {
         this.isRespawnCancelled = isRespawnCancelled;
     }
 
+    // Method to cancel the respawn corrutine if it was activated
     public void CancelRespawnCorrutineIfActive()
     {
         if (isRespawnCorrutineActive)

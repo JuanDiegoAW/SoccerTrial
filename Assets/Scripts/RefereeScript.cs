@@ -30,6 +30,8 @@ public class RefereeScript : MonoBehaviour
 
     // The GameObject that represents the soccer ball
     private GameObject soccerBall;
+    // The Game Controller
+    private GameObject gameController;
 
     // The animation used when a card spawns
     [SerializeField] private AnimationClip cardSpawnAnimation;
@@ -38,6 +40,7 @@ public class RefereeScript : MonoBehaviour
     void Start()
     {
         soccerBall = GameObject.FindGameObjectWithTag(TagsEnum.GameObjectTags.Player.ToString());
+        gameController = GameObject.FindGameObjectWithTag(TagsEnum.GameObjectTags.GameController.ToString());
         countdownDisplay.text = "";
         if (isCountdownActive)
         {
@@ -125,6 +128,7 @@ public class RefereeScript : MonoBehaviour
         else
         {
             //Game over
+            gameController.GetComponent<GameManagerScript>().GameOver();
         }
     }
 
