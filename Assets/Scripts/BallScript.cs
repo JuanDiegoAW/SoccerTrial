@@ -16,6 +16,7 @@ public class BallScript : MonoBehaviour
 
     // The initial position where the ball spawns (relative to the camera)
     private Vector3 ballSpawnPosition;
+
     // Vector that indicates the starting position of the swipe that will shoot the ball
     private Vector2 swipeStartPosition;
     // Vector that indicates the endind position of the swipe that will shoot the ball
@@ -36,6 +37,12 @@ public class BallScript : MonoBehaviour
     private bool isLastForceApplied = false;
     // Boolean that defines if a goal was scored
     private bool isGoalScored = false;
+    // Boolean that keeps track if a corrutine is currently active or not
+    private bool isRespawnCorrutineActive = false;
+    // Boolean that indicates if the ball respawn has been canceled or not
+    private bool isRespawnCancelled = false;
+    // Boolean that indicates if a user ineraction was to reposition the ball or to shoot it
+    private bool isBallRepositioned = false;
 
     // Variable that will contain the data of the curved shot
     private QuadraticCurveData curveData;
@@ -50,10 +57,14 @@ public class BallScript : MonoBehaviour
     // Variable that indicates how strong the shot is in the Z axis
     [SerializeField] private float throwForceZ;
 
+    private float raycastDepth;
+
     // Lives of the player
     [SerializeField] private int startingLives;
     private int currentLives;
     [SerializeField] private int respawnTime;
+
+    [SerializeField] private Text timeTouchText;
 
     // GameObject with the behaviour of the goal
     private GameObject referee;
@@ -84,6 +95,8 @@ public class BallScript : MonoBehaviour
                 // We see if the user is starting to touch the screen
                 if (actualTouch.phase == TouchPhase.Began)
                 {
+
+
                     this.GetTouchStartData(actualTouch);
                 }
                 else
@@ -95,7 +108,7 @@ public class BallScript : MonoBehaviour
                     {
                         this.GetTouchEndData(actualTouch);
                         this.CalculateBallDirectionAndShoot();
-                        this.StartCoroutine(AwaitToSpawnBall());
+                        this.StartCoroutine(AwaitToSpawnBall());   
                     }
                 }
             }
@@ -104,7 +117,7 @@ public class BallScript : MonoBehaviour
             {
                 float timeElapsed = (Time.time - movementStartTime)/ swipeIntervalTime;
                 // If the time elapsed since the ball was shot is still in range, we apply the curved effect to the ball
-                if (timeElapsed <= 0.9f)
+                if (timeElapsed <= 0.8f)
                 {
                     this.CurveQuadraticBall(timeElapsed, curveData);
                 }
@@ -112,7 +125,7 @@ public class BallScript : MonoBehaviour
                 else if (!isLastForceApplied)
                 {
                     isLastForceApplied = true;
-                    ballRigidBody.AddForce(-(curveData.middleVector - swipeEndPosition).x / 10, 0 , 1);
+                    ballRigidBody.AddForce(-(curveData.middleVector - swipeEndPosition).x / 15, 0 , 1);
                 }
             }
         }
@@ -152,6 +165,7 @@ public class BallScript : MonoBehaviour
         swipeIntervalTime = Time.time - this.swipeStartTime;
         swipeEndPosition = touch.position;
         overallSwipeDirection = swipeStartPosition - swipeEndPosition;
+        timeTouchText.text = swipeIntervalTime.ToString();
     }
 
     // Mehotd to calculate if a shot needs to be curved, and it what direction, or if the shot needs to be straight (and its direction too)
@@ -168,7 +182,7 @@ public class BallScript : MonoBehaviour
             // Or if the shot needs to be curved
             else
             {
-                swipeCurveRight.x += (swipeCurveRight.x - swipeStartPosition.x) / 1.5f;
+                swipeCurveRight.x += (swipeCurveRight.x - swipeStartPosition.x);
                 this.ShootCurvedBall(swipeCurveRight);
             }
         }
@@ -183,7 +197,7 @@ public class BallScript : MonoBehaviour
             // Or if the shot needs to be curved
             else
             {
-                swipeCurveLeft.x -= (swipeStartPosition.x - swipeCurveLeft.x) / 1.5f;
+                swipeCurveLeft.x -= (swipeStartPosition.x - swipeCurveLeft.x);
                 this.ShootCurvedBall(swipeCurveLeft);                
             }
         }
@@ -199,7 +213,7 @@ public class BallScript : MonoBehaviour
         ballRigidBody.AddForce(
             -overallSwipeDirection.x * throwForceX,
             -overallSwipeDirection.y * throwForceY,
-            throwForceZ / swipeIntervalTime
+            -overallSwipeDirection.y * throwForceZ / swipeIntervalTime
         );
 
         // We register the time when the ball was shot
@@ -217,7 +231,7 @@ public class BallScript : MonoBehaviour
         ballRigidBody.AddForce(
             0f, 
             -overallSwipeDirection.y * throwForceY,
-            throwForceZ / swipeIntervalTime
+            -overallSwipeDirection.y * throwForceZ / swipeIntervalTime
         );
 
         // We register the time when the ball was shot
@@ -284,6 +298,19 @@ public class BallScript : MonoBehaviour
         currentLives = startingLives;
     }
 
+    public void SetIsRespawnCanceled(bool isRespawnCancelled)
+    {
+        this.isRespawnCancelled = isRespawnCancelled;
+    }
+
+    public void CancelRespawnCorrutineIfActive()
+    {
+        if (isRespawnCorrutineActive)
+        {
+            this.SetIsRespawnCanceled(true);
+        }
+    }
+
     // Method to set if the ball scored a goal or not
     public void SetIsGoalScored(bool goalScored)
     {
@@ -297,8 +324,18 @@ public class BallScript : MonoBehaviour
     // Method to await x amount of secons and spawn the ball without any velocity of force in it
     private IEnumerator AwaitToSpawnBall()
     {
+        isRespawnCorrutineActive = true;
         yield return new WaitForSeconds(respawnTime);
-        this.RespawnBall();
+
+        if (!isRespawnCancelled)
+        {
+            this.RespawnBall();
+        }
+        else
+        {
+            isRespawnCancelled = false;
+        }
+        isRespawnCorrutineActive = false;
     }
 
     // Method to respown a ball

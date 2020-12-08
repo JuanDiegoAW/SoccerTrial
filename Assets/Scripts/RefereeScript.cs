@@ -46,10 +46,10 @@ public class RefereeScript : MonoBehaviour
             StartCoroutine(LevelCountdown());
 
             // Set the texture, size and animation of the cards
-            this.InitializeCards(cardTexture);
-            // Make yellow cards not visible at the beginning      
-            this.DisableAllCards();
+            this.InitializeCards(cardTexture);        
         }
+        // Make yellow cards not visible at the beginning      
+        this.DisableAllCards();
     }
 
     // Method to set the texture, animation and size of the cards
@@ -117,6 +117,7 @@ public class RefereeScript : MonoBehaviour
             if (isCountdownActive)
             {
                 this.RestartTimer();
+                soccerBall.GetComponent<BallScript>().CancelRespawnCorrutineIfActive();
             }
         }
         // If the player doesn't have any more lives left...
