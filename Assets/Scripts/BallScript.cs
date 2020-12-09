@@ -94,7 +94,7 @@ public class BallScript : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        ballSpawnPosition = gameObject.transform.position;
+        ballSpawnPosition = gameObject.transform.localPosition;
         ballRigidBody = GetComponent<Rigidbody>();
         trailRenderer = gameObject.GetComponent<TrailRenderer>();
         referee = GameObject.FindGameObjectWithTag(TagsEnum.GameObjectTags.Referee.ToString());
@@ -209,7 +209,7 @@ public class BallScript : MonoBehaviour
     // Method to reposition the ball in the X Axis based on a pixel position
     private void RepositionBallInXAxisBasedOnPixels(float xPosition)
     {
-        float newXPosition = Camera.main.ScreenToWorldPoint(new Vector3(xPosition, 1f, 2.5f)).x;
+        float newXPosition = Camera.main.ScreenToWorldPoint(new Vector3(xPosition, 1f, gameObject.transform.localPosition.z)).x;
         gameObject.transform.position += new Vector3(newXPosition - gameObject.transform.position.x, 0f, 0f);
         trailRenderer.Clear();
     }
@@ -280,7 +280,7 @@ public class BallScript : MonoBehaviour
                 middlePositionIndicator.transform.position = new Vector3(swipeCurveRight.x, swipeCurveRight.y, 0f);
                 endPositionIndicator.transform.position = new Vector3(swipeEndPosition.x, swipeEndPosition.y, 0f);
 
-                swipeCurveRight.x += (swipeCurveRight.x - swipeStartPosition.x) / 1.2f;
+                swipeCurveRight.x += (swipeCurveRight.x - swipeStartPosition.x) / 0.5f;
                 this.ShootCurvedBall(swipeCurveRight);
 
                 directionText.text = "Curved. Right";
@@ -310,7 +310,7 @@ public class BallScript : MonoBehaviour
                 middlePositionIndicator.transform.position = new Vector3(swipeCurveLeft.x, swipeCurveLeft.y, 0f);
                 endPositionIndicator.transform.position = new Vector3(swipeEndPosition.x, swipeEndPosition.y, 0f);
 
-                swipeCurveLeft.x -= (swipeStartPosition.x - swipeCurveLeft.x) / 1.2f;
+                swipeCurveLeft.x -= (swipeStartPosition.x - swipeCurveLeft.x) / 0.5f;
                 this.ShootCurvedBall(swipeCurveLeft);
 
                 directionText.text = "Curved. Left";
@@ -470,7 +470,7 @@ public class BallScript : MonoBehaviour
         ballRigidBody.angularVelocity = Vector3.zero;
         ballRigidBody.AddForce(0f, 0f, 0f);
         ballRigidBody.isKinematic = true;
-        gameObject.transform.position = ballSpawnPosition;
+        gameObject.transform.localPosition = ballSpawnPosition;
         trailRenderer.Clear();
         if (isGoalScored)
         {
