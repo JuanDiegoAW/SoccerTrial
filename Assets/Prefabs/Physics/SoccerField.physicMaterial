@@ -9,6 +9,6 @@ PhysicMaterial:
   m_Name: SoccerField
   dynamicFriction: 0.35
   staticFriction: 0.4
-  bounciness: 0.2
+  bounciness: 0.5
   frictionCombine: 0
   bounceCombine: 0
