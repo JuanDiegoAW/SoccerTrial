@@ -486,7 +486,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   throwForceX: 0.18
   throwForceY: 0.045
-  throwForceZ: 0.055
+  throwForceZ: 0.075
   startingLives: 2
   respawnTime: 5
   frameThreshold: 5
