@@ -63,10 +63,10 @@ public class BallScript : MonoBehaviour
     [SerializeField] private float throwForceZ;
     // Variable that serves as a threshold to know when a shot is curved in the x axis or not
     private float curveAllowedHorizontalPercentage = 15;
-    // Variable that serves as a threshold to know when a shot is curved or not
+    // Variable that serves as a threshold to know when a shot is curved or not in the y axis
     private float curveAllowedVerticalPercentage = 5;
     // Variable that stablishes what percentage of the screen will be used to reposition the ball
-    private float screenRepositionPercentage = 15f;
+    private float screenRepositionPercentage = 20f;
 
     private float zForceApplied = 0f;
 
@@ -148,18 +148,20 @@ public class BallScript : MonoBehaviour
             {
                 float timeElapsed = (Time.time - movementStartTime) / swipeIntervalTime * 0.4f;
                 // If the time elapsed since the ball was shot is still in range, we apply the curved effect to the ball
-                if (timeElapsed <= 1f)
+                if (timeElapsed <= 0.9f)
                     this.CurveQuadraticBall(timeElapsed, curveData);
                 // If enough time has passed to fully curve the ball, we see if it is necessary to apply the last force in the X axis to it
                 else if (!isLastForceApplied)
                 {
                     isLastForceApplied = true;
-                    if (zForceApplied > 500f)
-                        this.AddForceToBall(-(curveData.middleVector - swipeEndPosition).x / 28, 0f, 0.8f);
-                    else if (zForceApplied > 300f)
+                    if (zForceApplied > 700f)
+                        this.AddForceToBall(-(curveData.middleVector - swipeEndPosition).x / 30, 0f, 0.8f);
+                    else if (zForceApplied > 500f)
                         this.AddForceToBall(-(curveData.middleVector - swipeEndPosition).x / 35, 0f, 0.8f);
+                    else if (zForceApplied > 300f)
+                        this.AddForceToBall(-(curveData.middleVector - swipeEndPosition).x / 40, 0f, 0.8f);
                     else if (zForceApplied > 100f)
-                        this.AddForceToBall(-(curveData.middleVector - swipeEndPosition).x / 70, 0f, 0.8f);
+                        this.AddForceToBall(-(curveData.middleVector - swipeEndPosition).x / 75, 0f, 0.8f);
                     else
                         this.AddForceToBall(-(curveData.middleVector - swipeEndPosition).x / 120, 0f, 0.8f);
                 }
