@@ -76,7 +76,7 @@ public class BallScript : MonoBehaviour
     [SerializeField] private int startingLives;
     // Frames used to decide if a user 
     [SerializeField] private int frameThreshold;
-    private int frameCount;
+    private int frameCount = 0;
     // The actual number of lies of the player
     private int currentLives;
 
@@ -132,6 +132,13 @@ public class BallScript : MonoBehaviour
                     this.RepositionBallBasedOnPixels(actualTouch.position);
                 else
                 {
+                    if (!isTouchPhaseEnded)
+                    {
+                        frameCount++;
+                        startVectorText.text = frameCount.ToString();
+                    }
+
+
                     if (!isOutsideRepositionArea && touchStartedOnRepositionArea)
                         this.ShotBegan(actualTouch);
                     else if (!isTouchPhaseEnded)
@@ -139,7 +146,10 @@ public class BallScript : MonoBehaviour
                         if (isShotInProgress)
                             this.ShotInProgress(actualTouch);
                         if (actualTouch.phase == TouchPhase.Ended)
+                        {
+                            frameCount = 0;
                             this.ShotEnded(actualTouch);
+                        }                           
                     }
                 }
             }
@@ -155,15 +165,15 @@ public class BallScript : MonoBehaviour
                 {
                     isLastForceApplied = true;
                     if (zForceApplied > 700f)
-                        this.AddForceToBall(-(curveData.middleVector - swipeEndPosition).x / 30, 0f, 0.8f);
-                    else if (zForceApplied > 500f)
                         this.AddForceToBall(-(curveData.middleVector - swipeEndPosition).x / 35, 0f, 0.8f);
+                    else if (zForceApplied > 500f)
+                        this.AddForceToBall(-(curveData.middleVector - swipeEndPosition).x / 50, 0f, 0.8f);
                     else if (zForceApplied > 300f)
-                        this.AddForceToBall(-(curveData.middleVector - swipeEndPosition).x / 40, 0f, 0.8f);
+                        this.AddForceToBall(-(curveData.middleVector - swipeEndPosition).x / 65, 0f, 0.8f);
                     else if (zForceApplied > 100f)
-                        this.AddForceToBall(-(curveData.middleVector - swipeEndPosition).x / 75, 0f, 0.8f);
+                        this.AddForceToBall(-(curveData.middleVector - swipeEndPosition).x / 80, 0f, 0.8f);
                     else
-                        this.AddForceToBall(-(curveData.middleVector - swipeEndPosition).x / 120, 0f, 0.8f);
+                        this.AddForceToBall(-(curveData.middleVector - swipeEndPosition).x / 125, 0f, 0.8f);
                 }
             }
         }
