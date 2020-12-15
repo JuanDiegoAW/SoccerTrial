@@ -44,9 +44,9 @@ public class BallScript : MonoBehaviour
     private bool isTouchPhaseEnded = false;
     // Boolean that indicates if the first frame outside the reposition area has been accounted or not
     private bool isOutsideRepositionArea = false;
-
+    // Boolean that indicates if the swipe movement started from the reposition area
     private bool touchStartedOnRepositionArea = false;
-
+    // Boolean that indicates if the swipe movement of a shot is in process or not
     private bool isShotInProgress = false;
 
     // Variable that will contain the data of the curved shot
@@ -61,19 +61,19 @@ public class BallScript : MonoBehaviour
     [SerializeField] private float throwForceY;
     // Variable that indicates how strong the shot is in the Z axis
     [SerializeField] private float throwForceZ;
+    // Time necessary to respawn the ball after it was shot
+    [SerializeField] private float respawnTime;
     // Variable that serves as a threshold to know when a shot is curved in the x axis or not
-    private float curveAllowedHorizontalPercentage = 15;
+    private float curveAllowedHorizontalPercentage = 10;
     // Variable that serves as a threshold to know when a shot is curved or not in the y axis
     private float curveAllowedVerticalPercentage = 5;
     // Variable that stablishes what percentage of the screen will be used to reposition the ball
     private float screenRepositionPercentage = 20f;
-
+    // Variable that keeps track of how much force is applied in the Z axis when the ball is shot
     private float zForceApplied = 0f;
 
     // Starting Lives of the player
     [SerializeField] private int startingLives;
-    // Time necessary to respawn the ball after it was shot
-    [SerializeField] private int respawnTime;
     // Frames used to decide if a user 
     [SerializeField] private int frameThreshold;
     private int frameCount;

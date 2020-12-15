@@ -484,9 +484,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 21bda5c6fe5722c4ba9c059fe2bb1263, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  throwForceX: 0.18
-  throwForceY: 0.045
-  throwForceZ: 0.1
+  throwForceX: 0.25
+  throwForceY: 0.07
+  throwForceZ: 0.14
   startingLives: 2
   respawnTime: 5
   frameThreshold: 5
