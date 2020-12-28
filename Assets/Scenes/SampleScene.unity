@@ -485,7 +485,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   throwForceX: 0.25
-  throwForceY: 0.05
+  throwForceY: 0.04
   throwForceZ: 0.11
   throwForceZCurved: 0.145
   respawnTime: 5
