@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -13,8 +14,16 @@ public class BallScript : MonoBehaviour
         public Vector2 endVector;       //The ending position of the curved swipe
     }
 
+    private struct PositionInTime
+    {
+        public Vector2 vectorPosition;
+        public float positionTime;
+    }
+
     // The initial position where the ball spawns (relative to the camera)
     private Vector3 ballSpawnPosition;
+
+    private Vector3 curve;
 
     // Vector that indicates the starting position of the swipe that will shoot the ball
     private Vector2 swipeStartPosition;
@@ -42,33 +51,31 @@ public class BallScript : MonoBehaviour
     private bool isRespawnCancelled = false;
     // Boolean that indicates the user has already finished touching the screen
     private bool isTouchPhaseEnded = false;
-    // Boolean that indicates if the first frame outside the reposition area has been accounted or not
-    private bool isOutsideRepositionArea = false;
-    // Boolean that indicates if the swipe movement started from the reposition area
-    private bool touchStartedOnRepositionArea = false;
-    // Boolean that indicates if the swipe movement of a shot is in process or not
-    private bool isShotInProgress = false;
+
+    private bool isTouchOriginatedFromBallPosition = false;
+
+    private bool isShotDirectionToTheRight = false;
 
     // Variable that will contain the data of the curved shot
     private QuadraticCurveData curveData;
 
     // Variables that will store time variables. swipeStartTime = when the swipe started. swipeIntervalTime = how much time does the swipe lasted
     // movementStartTime = at what time does the ball started moving
-    private float swipeStartTime, swipeIntervalTime, movementStartTime;
+    private float swipeStartTime, swipeIntervalTime, movementStartTime, swipeCurveTime;
     // Variable that will indicate how strong the shot is in the X axis
     [SerializeField] private float throwForceX;
     // Variable that will indicate how strong the shot is in the Y axis
     [SerializeField] private float throwForceY;
     // Variable that indicates how strong the shot is in the Z axis
     [SerializeField] private float throwForceZ;
+    // Variable that indicates how strong the shot is in the Z axis
+    [SerializeField] private float throwForceZCurved;
     // Time necessary to respawn the ball after it was shot
     [SerializeField] private float respawnTime;
     // Variable that serves as a threshold to know when a shot is curved in the x axis or not
     private float curveAllowedHorizontalPercentage = 10;
     // Variable that serves as a threshold to know when a shot is curved or not in the y axis
     private float curveAllowedVerticalPercentage = 5;
-    // Variable that stablishes what percentage of the screen will be used to reposition the ball
-    private float screenRepositionPercentage = 20f;
     // Variable that keeps track of how much force is applied in the Z axis when the ball is shot
     private float zForceApplied = 0f;
 
@@ -76,9 +83,14 @@ public class BallScript : MonoBehaviour
     [SerializeField] private int startingLives;
     // Frames used to decide if a user 
     [SerializeField] private int frameThreshold;
-    private int frameCount = 0;
     // The actual number of lies of the player
     private int currentLives;
+
+    private int maxZForce = 610;
+
+    private int maxGestureCount = 50;
+
+    private Queue<PositionInTime> positionInTimeQueue = new Queue<PositionInTime>();
 
     // GameObject with the behaviour of the referee
     private GameObject referee;
@@ -94,8 +106,8 @@ public class BallScript : MonoBehaviour
     Ray touchRay;
 
     [SerializeField] private Text startVectorText;
-    [SerializeField] private Text leftCurveText;
-    [SerializeField] private Text RightCurveText;
+    [SerializeField] private Text leftVectorText;
+    [SerializeField] private Text rightVectorText;
     [SerializeField] private Text endVectorText;
     [SerializeField] private Text directionText;
 
@@ -105,6 +117,11 @@ public class BallScript : MonoBehaviour
     [SerializeField] private Image startPositionIndicator;
     [SerializeField] private Image middlePositionIndicator;
     [SerializeField] private Image endPositionIndicator;
+    [SerializeField] private Image rectPositionIndicator;
+
+    Vector2 gestureSum = Vector2.zero;
+    float gestureLength = 0;
+    float gestureCount = 0;
 
     // Start is called before the first frame update
     void Start()
@@ -121,97 +138,126 @@ public class BallScript : MonoBehaviour
     void Update()
     {
         // The player will only be allowed to throw the ball if there are enough lives left
-        if (this.isPlayerAlive())
+        if (this.IsPlayerAlive())
         {
             // If the user is touching the screen and if the ball is NOT in movement
             if (Input.touchCount > 0 && !isBallInMovement)
             {
-                Touch actualTouch = Input.GetTouch(0);
-                // If the ball is within the reposition area
-                if (actualTouch.position.y * 100 / Camera.main.pixelHeight < screenRepositionPercentage)
-                    this.RepositionBallBasedOnPixels(actualTouch.position);
-                else
+                if (!isTouchPhaseEnded)
                 {
-                    if (!isTouchPhaseEnded)
+                    Touch actualTouch = Input.GetTouch(0);
+                    
+                    if (actualTouch.phase.Equals(TouchPhase.Began))
                     {
-                        frameCount++;
-                        startVectorText.text = frameCount.ToString();
+                        if (this.IsTouchOverBall(actualTouch))
+                            isTouchOriginatedFromBallPosition = true;
                     }
-
-
-                    if (!isOutsideRepositionArea && touchStartedOnRepositionArea)
-                        this.ShotBegan(actualTouch);
-                    else if (!isTouchPhaseEnded)
-                    {
-                        if (isShotInProgress)
-                            this.ShotInProgress(actualTouch);
+                    if (isTouchOriginatedFromBallPosition)
+                    { 
+                        RepositionBallBasedOnTouch(actualTouch);
                         if (actualTouch.phase == TouchPhase.Ended)
                         {
-                            frameCount = 0;
-                            this.ShotEnded(actualTouch);
-                        }                           
+                            this.SaveFinalTouchFrameData(actualTouch);
+                            this.ShotEnded();
+                        }
+                        else
+                        {
+                            this.AddElementsToPositionQueue(new PositionInTime()
+                            {
+                                vectorPosition = actualTouch.position,
+                                positionTime = Time.time
+                            });
+                            this.isCircleRegistered();
+                        }
                     }
                 }
             }
             // If the ball is in movement and the throw is curved
             else if (isBallInMovement && isBallThrowCurved)
             {
-                float timeElapsed = (Time.time - movementStartTime) / swipeIntervalTime * 0.4f;
+                float timeElapsed = (Time.time - movementStartTime) / swipeCurveTime * 0.45f;
                 // If the time elapsed since the ball was shot is still in range, we apply the curved effect to the ball
-                if (timeElapsed <= 0.9f)
+                if (timeElapsed <= 0.85f)
                     this.CurveQuadraticBall(timeElapsed, curveData);
                 // If enough time has passed to fully curve the ball, we see if it is necessary to apply the last force in the X axis to it
                 else if (!isLastForceApplied)
                 {
                     isLastForceApplied = true;
-                    if (zForceApplied > 700f)
-                        this.AddForceToBall(-(curveData.middleVector - swipeEndPosition).x / 35, 0f, 0.8f);
-                    else if (zForceApplied > 500f)
-                        this.AddForceToBall(-(curveData.middleVector - swipeEndPosition).x / 50, 0f, 0.8f);
-                    else if (zForceApplied > 300f)
-                        this.AddForceToBall(-(curveData.middleVector - swipeEndPosition).x / 65, 0f, 0.8f);
-                    else if (zForceApplied > 100f)
-                        this.AddForceToBall(-(curveData.middleVector - swipeEndPosition).x / 80, 0f, 0.8f);
+                    //endVectorText.text = "overallx: " + overallSwipeDirection.x;
+                    float curveOffset = (gestureCount / maxGestureCount);
+                    startVectorText.text = curveOffset.ToString();
+
+                    if (isShotDirectionToTheRight)
+                        this.AddForceToBall(overallSwipeDirection.x / (10f / curveOffset), 0f, 0.5f);
                     else
-                        this.AddForceToBall(-(curveData.middleVector - swipeEndPosition).x / 125, 0f, 0.8f);
+                        this.AddForceToBall(overallSwipeDirection.x / (10f / curveOffset), 0f, 0.5f);
                 }
             }
         }
     }
 
-    // Method that defines what happens when a user is starting to touch the screen
-    private void ShotBegan(Touch actualTouch)
+    private void isCircleRegistered()
     {
-        isOutsideRepositionArea = true;
-        isTouchPhaseEnded = false;
-        isShotInProgress = true;
-        this.RepositionBallBasedOnPixels(actualTouch.position);
-        this.GetTouchStartData(actualTouch);
-    }
+        rightVectorText.text = "" + gestureCount;
 
-    // Method that defines what happens when a user is ending to touch the screen
-    private void ShotEnded(Touch actualTouch)
-    {
-        touchStartedOnRepositionArea = false;
-        isTouchPhaseEnded = true;
-        float yDistancePercentage = Math.Abs(actualTouch.position.y - swipeStartPosition.y) * 100 / Camera.main.pixelHeight;
-        if (isOutsideRepositionArea
-            && actualTouch.position.y > swipeStartPosition.y
-            && yDistancePercentage > 8)
+        endVectorText.text = "" + positionInTimeQueue.Count;
+        PositionInTime[] touchPositions = new PositionInTime[positionInTimeQueue.Count];
+        positionInTimeQueue.CopyTo(touchPositions,0);
+
+        gestureSum = Vector2.zero;
+        gestureLength = 0;
+        Vector2 prevDelta = Vector2.zero;
+        for (int i = 0; i < touchPositions.Length - 2; i++)
         {
-            this.CompareActualTouchToHighestCurves(actualTouch);
-            this.GetTouchEndData(actualTouch);
-            this.CalculateBallDirectionAndShoot();
-            this.StartCoroutine(AwaitToSpawnBall());
+            Vector2 delta = touchPositions[i + 1].vectorPosition - touchPositions[i].vectorPosition;
+            float deltaLength = delta.magnitude;
+            gestureSum += delta;
+            gestureLength += deltaLength;
+            if (Vector2.Dot(delta, prevDelta) < 0f)
+            {
+                startVectorText.text = "Cleared dot";
+                positionInTimeQueue.Clear();
+                //gestureCount = 0;
+            }
+            prevDelta = delta;
         }
-        isOutsideRepositionArea = false;
-        isShotInProgress = false;
+        int gestureBase = (Screen.width + Screen.height) / 4;
+        if (gestureLength > gestureBase && gestureSum.magnitude < gestureBase / 2)
+            gestureCount++;
+        else if (gestureCount > 0)
+            gestureCount -= 0.2f;
+        else
+            gestureCount = 0;
     }
 
-    // Method that defines what happens when a user is in the middle of touching the screen
-    private void ShotInProgress(Touch actualTouch)
+
+    private float FindSlopeOfTwoPoints(Vector2 firstPoint, Vector2 secondPoint, out float yOffset)
     {
-        this.CompareActualTouchToHighestCurves(actualTouch);
+        float slope = (firstPoint.y - secondPoint.y) / (firstPoint.x - secondPoint.x);
+        yOffset = firstPoint.y - (slope * firstPoint.x);
+        //yOffset = default;
+        return slope;
+    }
+
+    private void ShotEnded()
+    {
+        //this.AnalyzePositionQueue();
+        this.CalculateBallDirectionAndShoot();
+        this.StartCoroutine(AwaitToSpawnBall());
+    }
+
+    private void SaveFinalTouchFrameData(Touch finalTouch)
+    {
+        isTouchPhaseEnded = true;
+        swipeEndPosition = finalTouch.position;
+
+        PositionInTime firstSavedPosition = positionInTimeQueue.Dequeue();
+        swipeStartPosition = firstSavedPosition.vectorPosition;
+        swipeIntervalTime = (Time.time - firstSavedPosition.positionTime);
+        swipeCurveTime = swipeIntervalTime * 2f;
+        overallSwipeDirection = firstSavedPosition.vectorPosition - swipeEndPosition;
+
+        isShotDirectionToTheRight = swipeEndPosition.x > swipeStartPosition.x;
     }
 
     // Method that defines if a user's touch is over the ball or not
@@ -226,11 +272,23 @@ public class BallScript : MonoBehaviour
         return false;
     }
 
-    // Method to reposition the ball in the X Axis based on a pixel position
-    private void RepositionBallBasedOnPixels(Vector2 touch)
+    // Method to reposition the ball based on a touch position
+    private void RepositionBallBasedOnTouch(Touch touch)
     {
-        touchStartedOnRepositionArea = true;
-        Vector2 newPosition = Camera.main.ScreenToWorldPoint(new Vector3(touch.x, touch.y, gameObject.transform.localPosition.z));
+        //touchStartedOnRepositionArea = true;
+        Vector2 newPosition = Camera.main.ScreenToWorldPoint(new Vector3(touch.position.x, touch.position.y, gameObject.transform.localPosition.z));
+        gameObject.transform.position = new Vector3(
+            newPosition.x,
+            newPosition.y,
+            gameObject.transform.position.z
+        );
+        trailRenderer.Clear();
+    }
+
+    private IEnumerator RepositionBallBasedOnTouchWithDelay(Touch touch, float time)
+    {
+        yield return new WaitForSeconds(time);
+        Vector2 newPosition = Camera.main.ScreenToWorldPoint(new Vector3(touch.position.x, touch.position.y, gameObject.transform.localPosition.z));
         gameObject.transform.position = new Vector3(
             newPosition.x,
             newPosition.y,
@@ -240,9 +298,25 @@ public class BallScript : MonoBehaviour
     }
 
     // Method to verify a player is alive
-    private bool isPlayerAlive()
+    private bool IsPlayerAlive()
     {
         return currentLives > 0;
+    }
+
+    private void AddElementsToPositionQueue(PositionInTime positionInTime)
+    {
+        if (positionInTimeQueue.Count == frameThreshold)
+        {
+            positionInTimeQueue.Dequeue();        
+        }
+        else if (positionInTimeQueue.Count > frameThreshold)
+        {
+            for (int i = 0; i <= (positionInTimeQueue.Count - frameThreshold); i++)
+            {
+                positionInTimeQueue.Dequeue();
+            }
+        }
+        positionInTimeQueue.Enqueue(positionInTime);
     }
 
     // Method to compare the current position of the user's touch and see if it surpasses the previously registerd highest point of the swipe curve.
@@ -252,15 +326,6 @@ public class BallScript : MonoBehaviour
             swipeCurveRight = touch.position;
         else if (touch.position.x < swipeCurveLeft.x)
             swipeCurveLeft = touch.position;
-    }
-
-    // Method to save the initial data when the user starts the swipe movement
-    private void GetTouchStartData(Touch touch)
-    {
-        swipeStartTime = Time.time;
-        swipeStartPosition = touch.position;
-        swipeCurveRight = touch.position;
-        swipeCurveLeft = touch.position;
     }
 
     // Method to save the final thata when the user ends the swipe movement
@@ -274,27 +339,10 @@ public class BallScript : MonoBehaviour
     // Mehotd to calculate if a shot needs to be curved, and it what direction, or if the shot needs to be straight (and its direction too)
     private void CalculateBallDirectionAndShoot()
     {
-        if (this.CheckIfShotIsCurved(out bool isShotCurvedRight))
+        if (this.CheckIfThrowIsCurved())
         {
-            if (isShotCurvedRight)
-            {
-                startPositionIndicator.transform.position = new Vector3(swipeStartPosition.x, swipeStartPosition.y, 0f);
-                middlePositionIndicator.transform.position = new Vector3(swipeCurveRight.x, swipeCurveRight.y, 0f);
-                endPositionIndicator.transform.position = new Vector3(swipeEndPosition.x, swipeEndPosition.y, 0f);
-
-                swipeCurveRight.x += (swipeCurveRight.x - swipeStartPosition.x) * 2f;
-                this.ShootCurvedBall(swipeCurveRight);
-            }
-            else
-            {
-                startPositionIndicator.transform.position = new Vector3(swipeStartPosition.x, swipeStartPosition.y, 0f);
-                middlePositionIndicator.transform.position = new Vector3(swipeCurveLeft.x, swipeCurveLeft.y, 0f);
-                endPositionIndicator.transform.position = new Vector3(swipeEndPosition.x, swipeEndPosition.y, 0f);
-
-                swipeCurveLeft.x -= (swipeStartPosition.x - swipeCurveLeft.x) * 2f;
-                this.ShootCurvedBall(swipeCurveLeft);
-            }
-            rightCurvePercentage.text = $"Z force: {(-overallSwipeDirection.y * throwForceZ / swipeIntervalTime)}";
+            this.SetCurveDirection();
+            this.ShootStraightBall(false);
         }
         else
         {
@@ -302,85 +350,76 @@ public class BallScript : MonoBehaviour
             middlePositionIndicator.transform.position = new Vector3(0f, 0f, 0f);
             endPositionIndicator.transform.position = new Vector3(swipeEndPosition.x, swipeEndPosition.y, 0f);
 
-            rightCurvePercentage.text = $"Z force: {(-overallSwipeDirection.y * throwForceZ / swipeIntervalTime)}";
-            this.ShootStraightBall();
+            this.ShootStraightBall(true);
         }
     }
 
-    // Method that evaluates if the shot has the necessary conditions to count as curved
-    private bool CheckIfShotIsCurved(out bool isShotCurvedRight)
+    // Method to know if a throw is curved
+    private bool CheckIfThrowIsCurved()
     {
-        // If the curve is to the right
-        if (Math.Abs(swipeStartPosition.x - swipeCurveLeft.x) <= Math.Abs(swipeCurveRight.x - swipeStartPosition.x))
-        {
-            isShotCurvedRight = true;
+        isBallThrowCurved = gestureCount >= 20;
+        return isBallThrowCurved;
+    }
 
-            float curveHorizontalEndPercentage = (swipeCurveRight.x - swipeEndPosition.x) * 100f / Camera.main.pixelWidth;
-            float curveHorizontalStartPercentage = (swipeCurveRight.x - swipeStartPosition.x) * 100f / Camera.main.pixelWidth;
-            float curveVerticalEndPercentage = (swipeEndPosition.y - swipeCurveRight.y) * 100f / Camera.main.pixelHeight;
-            float curveVerticalStartPercentage = (swipeCurveRight.y - swipeStartPosition.y) * 100f / Camera.main.pixelHeight;
+    private void SetCurveDirection()
+    {
+        Vector2 curveStartVector = swipeEndPosition;
+        Vector2 curveEndVector = new Vector2(swipeEndPosition.x, swipeEndPosition.y + (swipeEndPosition.y - swipeStartPosition.y) * 34f);
+        Vector2 middleVector = Vector2.zero;
+        gestureCount /= 1.8f;
+        float gestureCountOffset = gestureCount <= maxGestureCount ? gestureCount / 10f : maxGestureCount;
 
-            if ((curveHorizontalEndPercentage > curveAllowedHorizontalPercentage && curveHorizontalStartPercentage > curveAllowedHorizontalPercentage)
-                && (curveVerticalEndPercentage > curveAllowedVerticalPercentage && curveVerticalStartPercentage > curveAllowedVerticalPercentage))
-            {
-                return true;
-            }
-        }
+        if (isShotDirectionToTheRight)
+            middleVector = new Vector2(curveStartVector.x + (curveStartVector.x - swipeStartPosition.x) * (gestureCount  /10f), curveStartVector.y + (curveStartVector.y - swipeStartPosition.y) / 32.5f);
         else
-        {
-            isShotCurvedRight = false;
+            middleVector = new Vector2(curveStartVector.x - (swipeStartPosition.x - curveStartVector.x) * (gestureCount / 10f), curveStartVector.y + (curveStartVector.y - swipeStartPosition.y) / 32.5f);
 
-            float curveHorizontalEndPercentage = (swipeEndPosition.x - swipeCurveLeft.x) * 100f / Camera.main.pixelWidth;
-            float curveHorizontalStartPercentage = (swipeStartPosition.x - swipeCurveLeft.x) * 100f / Camera.main.pixelWidth;
-            float curveVerticalEndPercentage = (swipeEndPosition.y - swipeCurveLeft.y) * 100f / Camera.main.pixelHeight;
-            float curveVerticalStartPercentage = (swipeCurveLeft.y - swipeStartPosition.y) * 100f / Camera.main.pixelHeight;
+        this.SetQuadraticCuvedBallData(
+            curveStartVector,
+            middleVector,
+            curveEndVector
+        );
 
-            if ((curveHorizontalEndPercentage > curveAllowedHorizontalPercentage && curveHorizontalStartPercentage > curveAllowedHorizontalPercentage)
-                && (curveVerticalEndPercentage > curveAllowedVerticalPercentage && curveVerticalStartPercentage > curveAllowedVerticalPercentage))
-            {
-                return true;
-            }
-        }
-
-        isShotCurvedRight = default;
-        return false;
+        startPositionIndicator.transform.position = new Vector3(curveStartVector.x, curveStartVector.y, 0f);
+        middlePositionIndicator.transform.position = new Vector3(middleVector.x, middleVector.y, 0f);
+        endPositionIndicator.transform.position = new Vector3(curveEndVector.x, curveEndVector.y, 0f);
     }
 
     // Method to do a straight shoot based on the overallSwipeDirection
-    private void ShootStraightBall()
+    private void ShootStraightBall(bool addXForce)
     {
         // We set that the ball is in movement and remove its kinematic property
         isBallInMovement = true;
         ballRigidBody.isKinematic = false;
 
-        float xOffset = (swipeStartPosition.x - Camera.main.pixelWidth / 2) * throwForceX;
-        float normalForceX = (-overallSwipeDirection.x * throwForceX);
         zForceApplied = (-overallSwipeDirection.y * throwForceZ / swipeIntervalTime);
+        zForceApplied = zForceApplied > 0f ? zForceApplied : 0f;
+        zForceApplied = zForceApplied > maxZForce ? maxZForce : zForceApplied;
 
-        this.AddForceToBall(xOffset + normalForceX, (-overallSwipeDirection.y * throwForceY), zForceApplied);
+        rectPositionIndicator.transform.position = swipeStartPosition;
+
+        float normalForceX = 0f;
+        float xOffset = 0f;
+        if (addXForce)
+        {
+            normalForceX = (-overallSwipeDirection.x * throwForceX);
+            xOffset = (swipeStartPosition.x - Camera.main.pixelWidth / 2) * throwForceX * (zForceApplied / 770f);
+        }
+              
+        float normalForceY = (-overallSwipeDirection.y * throwForceY);
+        float yEndSwipePercentage = (swipeEndPosition.y / Camera.main.pixelHeight);
+        float yOffset = yEndSwipePercentage * normalForceY;
+        yOffset = yEndSwipePercentage > 0.5f ? yOffset *= 3f : yOffset *= 1.5f;
+
+        this.AddForceToBall(normalForceX + xOffset, normalForceY + yOffset, zForceApplied);
+
+        rightCurvePercentage.text = zForceApplied.ToString();
 
         // We register the time when the ball was shot
         movementStartTime = Time.time;
     }
 
-    // Method to shoot a curved ball based on the curveVector specified
-    private void ShootCurvedBall(Vector2 curveVector)
-    {
-        // We set that the ball is in movement, that is a curved throw and remove its kinematic property
-        isBallInMovement = true;
-        ballRigidBody.isKinematic = false;
-        isBallThrowCurved = true;
-
-        zForceApplied = (-overallSwipeDirection.y * throwForceZ / swipeIntervalTime);
-
-        this.AddForceToBall(0f, (-overallSwipeDirection.y * throwForceY), zForceApplied);
-
-        // We register the time when the ball was shot
-        movementStartTime = Time.time;
-        // We set the curve data
-        this.SetQuadraticCuvedBallData(swipeStartPosition, curveVector, swipeEndPosition);
-    }
-
+   
     private void AddForceToBall(float xForce, float yForce, float zForce)
     {
         ballRigidBody.AddForce(
@@ -404,14 +443,18 @@ public class BallScript : MonoBehaviour
     // Method to curve the ball in the X axis based on a Quadratic Bezier Curve 
     private void CurveQuadraticBall(float time, QuadraticCurveData curveData)
     {
-        Vector3 curve = this.CalculateQuadraticBezierCurve(
+        curve = this.CalculateQuadraticBezierCurve(
             time,
-            Camera.main.ScreenToWorldPoint(new Vector3(curveData.startVector.x, curveData.startVector.y, 1)),
-            Camera.main.ScreenToWorldPoint(new Vector3(curveData.middleVector.x, curveData.middleVector.y, 1)),
-            Camera.main.ScreenToWorldPoint(new Vector3(curveData.endVector.x, curveData.endVector.y, 1))
+            Camera.main.ScreenToWorldPoint(new Vector3(curveData.startVector.x, curveData.startVector.y, ballSpawnPosition.z)),
+            Camera.main.ScreenToWorldPoint(new Vector3(curveData.middleVector.x, curveData.middleVector.y, ballSpawnPosition.z)),
+            Camera.main.ScreenToWorldPoint(new Vector3(curveData.endVector.x, curveData.endVector.y, ballSpawnPosition.z))
         );
-        // We curve the ball in the X axis based on the time elapsed since the ball was shot
-        gameObject.transform.position += new Vector3(curve.x - gameObject.transform.position.x, 0f, 0f);
+        // We curve the ball in the X axis based on the time elapsed since the ball was shot'
+        //Vector3 newPosition = gameObject.transform.position + new Vector3(curve.x - gameObject.transform.position.x, 0f, 0f);
+        //gameObject.transform.position += new Vector3(curve.x - gameObject.transform.position.x, 0f, 0f);
+        //this.AddForceToBall( -(curve.x - gameObject.transform.position.x)/Math.Abs(time - 0.5f), 0f, 0f);
+        //gameObject.transform.position = Vector3.MoveTowards(previousPosition, newPosition, 0.1f);
+        gameObject.transform.position += new Vector3((curve.x - gameObject.transform.position.x), 0f, 0f);
     }
 
     // Method to calculate a Cuadratic Bezier Curve based on three vectors and the time elapsed
@@ -426,20 +469,6 @@ public class BallScript : MonoBehaviour
         Vector3 c = time * time * p2;
 
         return a + b + c;
-    }
-
-    // Method to find the distance between two points
-    private double findDistanceBetweenTwoPoints(Vector2 startingPonint, Vector2 endingPoint)
-    {
-        //d=√((x2-x1)²+(y2-y1)²)
-        //d=     a    +   b
-        double a = startingPonint.x - endingPoint.x;
-        a = a * a;
-        double b = startingPonint.y - endingPoint.y;
-        b = b * b;
-        double d = Math.Sqrt(a + b);
-
-        return d;
     }
 
     // Method to substract a life from the player and return the number of lifes it has after that
@@ -495,20 +524,37 @@ public class BallScript : MonoBehaviour
     // Method to respown a ball
     public void RespawnBall()
     {
+        this.ResartValues();
+        trailRenderer.Clear();
+        if (isGoalScored)
+        {
+            referee.GetComponent<RefereeScript>().DisableAllCards();
+            referee.GetComponent<RefereeScript>().RestartTimer();
+        }       
+    }
+
+    private void ResartValues()
+    {
+        positionInTimeQueue.Clear();
         isBallInMovement = false;
+        isTouchOriginatedFromBallPosition = false;
+        isTouchPhaseEnded = false;
         isLastForceApplied = false;
         isBallThrowCurved = false;
         ballRigidBody.velocity = Vector3.zero;
         ballRigidBody.angularVelocity = Vector3.zero;
         ballRigidBody.AddForce(0f, 0f, 0f);
         ballRigidBody.isKinematic = true;
-        gameObject.transform.localPosition = ballSpawnPosition;
-        trailRenderer.Clear();
-        if (isGoalScored)
-        {
-            referee.GetComponent<RefereeScript>().DisableAllCards();
-            referee.GetComponent<RefereeScript>().RestartTimer();
-        }
         isGoalScored = false;
+        gameObject.transform.localPosition = ballSpawnPosition;
+        gestureCount = 0;
+
+        startVectorText.text = "";
+        leftVectorText.text = "";
+        rightVectorText.text = "";
+        endVectorText.text = "";
+        directionText.text = "";
+        leftCurvePercentage.text = "";
+        rightCurvePercentage.text = "";
     }
 }
