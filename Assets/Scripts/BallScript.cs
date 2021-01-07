@@ -70,8 +70,6 @@ public class BallScript : MonoBehaviour
     private float swipeStartTime, swipeIntervalTime, movementStartTime;
     // Time necessary to respawn the ball after it was shot
     [SerializeField] private float respawnTime;
-    // Variable that keeps track of how much force is applied in the Z axis when the ball is shot
-    private float zForceApplied;
     // Variable used to verify if a circle was registered or not
     private float gestureLength;
     // The number of circles registered as part of the user's input
@@ -172,7 +170,6 @@ public class BallScript : MonoBehaviour
         gestureLength = 0;
         endForceToApply = 0;
         circlesRegistered = 0;
-        zForceApplied = 0;
         elapsedTime = 0;
         gestureSum = Vector2.zero;
 
@@ -212,17 +209,15 @@ public class BallScript : MonoBehaviour
                         if (this.IsTouchOverBall(actualTouch))
                             isTouchOriginatedFromBallPosition = true;
                     }
-                    // Else, if the user is currently making a touch gesture that originated over the ball's position
+                    // And if the user is currently making a touch gesture that originated over the ball's position, we handle that gesture
                     if (isTouchOriginatedFromBallPosition)
-                    {
                         this.HandleUserGesture(actualTouch);
-                    }
                 }
             }
-            // If the ball is in movement 
+            // Else, if the ball is in movement 
             else if (isBallInMovement)
             {
-                //If the the throw is curved, we need to apply the curve effect
+                //If the ball is already shot with a curve effect, we need to apply the curvature to the throw
                 if (isBallInMovement && isBallThrowCurved)
                     this.GraduallyApplyCurvedEffectToShot();
 
@@ -264,9 +259,9 @@ public class BallScript : MonoBehaviour
 
             //// And we add the last force to the ball, so it's curved trajectory doesn't end abruptly
             if (isShotDirectionToTheRight)
-                this.AddForceToBall(-endForceToApply / lastCurveForceDividend, 0f, 0.2f);
+                this.AddForceToBall(-endForceToApply / lastCurveForceDividend, 0f, 0.5f);
             else
-                this.AddForceToBall(-endForceToApply / lastCurveForceDividend, 0f, 0.2f);
+                this.AddForceToBall(-endForceToApply / lastCurveForceDividend, 0f, 0.5f);
         }
     }
 
@@ -500,10 +495,10 @@ public class BallScript : MonoBehaviour
         // We check if the ball throw needs to be curved
         if (this.CheckIfThrowIsCurved())
         {
-            // And then we make the throw
-            this.ShootStraightBall(false);
-            // If it the shot is curved, we first stablish the curve it will form
-            this.SetCurveDirection();
+            // we make a straight shot
+            this.ShootStraightBall(out float xForce, out float yForce, out float zForce);
+            // And we establish the shape of the curve (the ZForce applied changes its behaviour)
+            this.SetCurveDirection(zForce);
             
 
             startPositionIndicator.transform.position = new Vector3(swipeStartPosition.x, swipeStartPosition.y, 0f);
@@ -517,7 +512,7 @@ public class BallScript : MonoBehaviour
             endPositionIndicator.transform.position = new Vector3(swipeEndPosition.x, swipeEndPosition.y, 0f);
 
             // Else, the throw is straight
-            this.ShootStraightBall(true);
+            this.ShootStraightBall(out float xForce, out float yForce, out float zForce);
         }
     }
 
@@ -543,15 +538,15 @@ public class BallScript : MonoBehaviour
     }
 
     // Method to establish how the curve will be formed on a curved shot
-    private void SetCurveDirection()
+    private void SetCurveDirection(float zForce)
     {
-        if (zForceApplied > 25f)
+        if (zForce > 25f)
         {
             //We need three vectors to form the bezier curve. The starting point (which is where the ball was at the end of the user's touch)
             Vector2 curveStartVector = swipeEndPosition;
-            // The end of the curve, which will be the same as the starting point but highter in the Y axis 
+            // The end of the curve
             Vector2 curveEndVector = Vector2.zero;
-            // And the middle vector (wich defines the curve)
+            // And the middle of the curve
             Vector2 curveMiddleVector = Vector2.zero;
 
             // And we make sure the curve factor does not go above the maximum value allowed (to not make an exagerated curve)
@@ -559,7 +554,7 @@ public class BallScript : MonoBehaviour
             float curveFactorOffset = circlesRegistered / CIRCLE_COUNT_DIVIDEND;
             float xAxisDifference = Math.Abs(swipeStartPosition.x - curveStartVector.x);
             float distanceBetweenSwipeAndCameraCenter = (swipeEndPosition.x - Camera.main.pixelWidth / 2) / Camera.main.pixelWidth;
-
+            float zForceOffset = zForce / MAX_Z_FORCE_ALLOWED;
             float xOffset = distanceBetweenSwipeAndCameraCenter * X_OFFSET_CURVE_MULTIPLER;
             lastCurveForceDividend = Math.Abs(distanceBetweenSwipeAndCameraCenter) <= 0.35f ? 5f : 0.3f;
             float curveEndVectorFactor = 0.08f;
@@ -571,12 +566,22 @@ public class BallScript : MonoBehaviour
             {
                 if (isCurveEffectToTheRight)
                 {
-                    curveEndVectorFactor = 20/2;
-                    isMiddleValueLimited = false;
-                    curveMiddleVectorFactor /= 2;
-                    lastCurveForceDividend *= -1.25f;
+                    lastCurveForceDividend *= -1.5f;
+                    float swipeEndPositionPercentage = swipeEndPosition.x * 2 / Camera.main.pixelWidth;
+                    if (swipeEndPositionPercentage >= 0.5f)
+                    {
+                        swipeEndPositionPercentage *= 4f;
+                        curveMiddleVectorFactor *= 2.5f;
+                        lastCurveForceDividend *= 0.8f;
+                    }
+                    else
+                    {
+                        curveMiddleVectorFactor /= 2;
+                    }
+                    curveEndVectorFactor = 20/2 * swipeEndPositionPercentage;
+                    isMiddleValueLimited = false;                  
                 }
-                float xMiddleValue = curveStartVector.x + (xOffset + (xAxisDifference * curveMiddleVectorFactor * curveFactorOffset));
+                float xMiddleValue = curveStartVector.x + (xOffset + (xAxisDifference * curveMiddleVectorFactor * curveFactorOffset)) * zForceOffset;
                 curveMiddleVector = new Vector2(
                     xMiddleValue < curveStartVector.x && isMiddleValueLimited ? curveStartVector.x : xMiddleValue,
                     curveStartVector.y + ((curveStartVector.y - swipeStartPosition.y) * MIDDLE_CURVE_Z_FACTOR)
@@ -587,12 +592,12 @@ public class BallScript : MonoBehaviour
             {
                 if (!isCurveEffectToTheRight)
                 {
-                    curveEndVectorFactor = 20 / 2;
+                    curveEndVectorFactor = 20 / 4;
                     isMiddleValueLimited = false;
-                    curveMiddleVectorFactor /= 2;
-                    lastCurveForceDividend *= -1.25f;
+                    curveMiddleVectorFactor /= 4;
+                    lastCurveForceDividend *= -1.5f;
                 }
-                float xMiddleValue = curveStartVector.x + (xOffset - (xAxisDifference * curveMiddleVectorFactor * curveFactorOffset));
+                float xMiddleValue = curveStartVector.x + (xOffset - (xAxisDifference * curveMiddleVectorFactor * curveFactorOffset)) * zForceOffset;
                 curveMiddleVector = new Vector2(
                     xMiddleValue > curveStartVector.x && isMiddleValueLimited ? curveStartVector.x : xMiddleValue,
                     curveStartVector.y + ((curveStartVector.y - swipeStartPosition.y) * MIDDLE_CURVE_Z_FACTOR)
@@ -602,29 +607,25 @@ public class BallScript : MonoBehaviour
             if (isCurveEffectToTheRight)
             {
                 curveEndVector = new Vector2(
-                    curveMiddleVector.x + (xAxisDifference * curveEndVectorFactor * curveFactorOffset /*+ Math.Abs(xOffset)*/),
+                    curveMiddleVector.x + (xAxisDifference * curveEndVectorFactor * curveFactorOffset /*+ Math.Abs(xOffset)*/) * zForceOffset,
                     curveStartVector.y + ((curveStartVector.y - swipeStartPosition.y) * END_CURVE_Z_FACTOR)
                 );
             }
             else
             {
                 curveEndVector = new Vector2(
-                    curveMiddleVector.x - (xAxisDifference * curveEndVectorFactor * curveFactorOffset /*- Math.Abs(xOffset)*/),
+                    curveMiddleVector.x - (xAxisDifference * curveEndVectorFactor * curveFactorOffset /*- Math.Abs(xOffset)*/) * zForceOffset,
                     curveStartVector.y + ((curveStartVector.y - swipeStartPosition.y) * END_CURVE_Z_FACTOR)
                 );
             }
             startVectorText.text = "X ax diff: " + xAxisDifference;
             leftCurvePercentage.text = "xOffset: " + xOffset;
             rightCurvePercentage.text = "curveFactor offset: " + curveFactorOffset;
-
             leftVectorText.text = "curveStart: " + curveStartVector.ToString();
             rightVectorText.text = "curveMiddle: " + curveMiddleVector.ToString();
             endVectorText.text = "curveEnd: " + curveEndVector.ToString();
             
-
             endForceToApply = curveEndVector.x - curveMiddleVector.x;
-
-            //directionText.text = "last force: " + endForceToApply / LAST_CURVE_FORCE_DIVIDEND;
 
             this.SetQuadraticCuvedBallData(
                 curveStartVector,
@@ -637,56 +638,67 @@ public class BallScript : MonoBehaviour
     }
 
     // Method to do a shot based on the overallSwipeDirection
-    private void ShootStraightBall(bool addXForce)
+    private void ShootStraightBall(out float xForce, out float yForce, out float zForce)
     {
         // We set that the ball is in movement and remove its kinematic property
         isBallInMovement = true;
         ballRigidBody.isKinematic = false;
 
         // We find the force that will be applied in the Z axis
-        zForceApplied = (-overallSwipeDirection.y * THROW_FORCE_Z / swipeIntervalTime);
-        zForceApplied = zForceApplied > 0f ? zForceApplied : 0f;
-        zForceApplied = zForceApplied > MAX_Z_FORCE_ALLOWED ? MAX_Z_FORCE_ALLOWED : zForceApplied;
-
-        rectPositionIndicator.transform.position = swipeStartPosition;
-
+        zForce = this.CalculateZForceForShot();
+        //rectPositionIndicator.transform.position = swipeStartPosition
         // We find the force that will be applied in the X axis only if needed
-        float normalForceX = 0f;
-        float xOffset = 0f;
-        if (addXForce)
-        {
-            normalForceX = (-overallSwipeDirection.x * THROW_FORCE_X);
-            xOffset = (swipeStartPosition.x - Camera.main.pixelWidth / 2) * (zForceApplied * 0.25f / 765f);
-        }
-              
+        xForce = this.CalculateXForceForShot(zForce);
         // We find the force that will be applied in the Y axis
-        float normalForceY = (-overallSwipeDirection.y * THROW_FORCE_Y);
+        yForce = this.CalculateYForceForShot();
+        
+        // And we add the force to the ball
+        this.AddForceToBall(xForce, yForce, zForce);
+
+        // We register the time when the ball was shot
+        movementStartTime = Time.time;
+    }
+
+    private float CalculateXForceForShot(float zForce)
+    {
+        if (!isBallThrowCurved)
+        {
+            float xForce = (-overallSwipeDirection.x * THROW_FORCE_X);
+            float xOffset = (swipeStartPosition.x - Camera.main.pixelWidth / 2) * (zForce * 0.25f / 765f);
+            return xForce + xOffset;
+        }
+        else
+            return 0;
+    }
+
+    private float CalculateYForceForShot()
+    {
+        float yForce = (-overallSwipeDirection.y * THROW_FORCE_Y);
         float yEndSwipePercentage = (swipeEndPosition.y / Camera.main.pixelHeight);
-        float yOffset = yEndSwipePercentage * normalForceY;
+        float yOffset = yEndSwipePercentage * yForce;
 
         if (yOffset > 75)
         {
-            yOffset *= 80f;
+            yOffset *= 180f;
         }
         else if (yOffset > 50)
         {
-            yOffset *= 6f;
+            yOffset *= 10f;
         }
         else if (yOffset > 25)
         {
             yOffset *= 1.35f;
         }
-        //yOffset = yEndSwipePercentage > 0.6f ? yOffset *= 6f : yOffset *= 1.25f;
 
-        
+        return yForce + yOffset;
+    }
 
-        // And we add the force to the ball
-        this.AddForceToBall(normalForceX + xOffset, normalForceY + yOffset, zForceApplied);
-
-        rightCurvePercentage.text = zForceApplied.ToString();
-
-        // We register the time when the ball was shot
-        movementStartTime = Time.time;
+    private float CalculateZForceForShot()
+    {
+        float zForce = (-overallSwipeDirection.y * THROW_FORCE_Z / swipeIntervalTime);
+        zForce = zForce > 0f ? zForce : 0f;
+        zForce = zForce > MAX_Z_FORCE_ALLOWED ? MAX_Z_FORCE_ALLOWED : zForce;
+        return zForce;
     }
 
     // Method that adds a specified force to the ball's rigid body
@@ -803,8 +815,7 @@ public class BallScript : MonoBehaviour
 
     //Method to reset the values of all variables
     private void ResartValues()
-    {
-        
+    {        
         circleGestureQueue.Clear();
         ballRigidBody.velocity = Vector3.zero;
         ballRigidBody.angularVelocity = Vector3.zero;
@@ -818,7 +829,6 @@ public class BallScript : MonoBehaviour
         gestureLength = 0;
         endForceToApply = 0;
         circlesRegistered = 0;
-        zForceApplied = 0;
         elapsedTime = 0;
         gestureSum = Vector2.zero;
 
