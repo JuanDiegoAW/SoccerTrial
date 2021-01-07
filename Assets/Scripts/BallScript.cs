@@ -227,10 +227,7 @@ public class BallScript : MonoBehaviour
                     // If the user double taps the screen, we return the ball to the respawn position
                     if (this.VerifyIfUserDoubleTaps(Input.GetTouch(0)))
                     {
-                        if (gameObject.transform.position.z > goal.transform.position.z)
-                            returnBallToRespawnPositionInTwoSteps = true;
-                        else
-                            returnBallToRespawnPosition = true;
+                        this.MoveBallToSpawnPosition();     
                     }
                 }
 
@@ -311,6 +308,18 @@ public class BallScript : MonoBehaviour
         return touch.tapCount >= 2;
     }
 
+    private void MoveBallToSpawnPosition()
+    {
+        if (Physics.Linecast(gameObject.transform.position, Camera.main.transform.TransformPoint(ballSpawnPosition), out RaycastHit hitInfo))
+        {
+            directionText.text = hitInfo .ToString();
+            returnBallToRespawnPositionInTwoSteps = true;
+        }
+        else
+            returnBallToRespawnPosition = true;
+
+    }
+
     // Method to transition from the current ball's position, to the respawn position
     private void TransitionBallToRespawnPosition()
     {
@@ -321,7 +330,7 @@ public class BallScript : MonoBehaviour
             Camera.main.transform.TransformPoint(ballSpawnPosition),
             elapsedTime / 2
         );
-        if (Vector3.Distance(gameObject.transform.localPosition, ballSpawnPosition) < 0.93f)
+        if (Vector3.Distance(gameObject.transform.localPosition, ballSpawnPosition) < 0.95f)
         {
             this.RespawnBall();
         }
@@ -333,7 +342,7 @@ public class BallScript : MonoBehaviour
         this.StopAllCoroutines();
         elapsedTime += Time.deltaTime;
         Vector3 aboveGoalPosition = Camera.main.transform.TransformPoint(goal.transform.position) +
-            new Vector3(-Camera.main.transform.position.x, 3f, 3f);
+            new Vector3(-Camera.main.transform.position.x, 3f, 45f);
 
         transform.position = Vector3.Lerp(
             gameObject.transform.position,
@@ -540,7 +549,7 @@ public class BallScript : MonoBehaviour
     // Method to establish how the curve will be formed on a curved shot
     private void SetCurveDirection(float zForce)
     {
-        if (zForce > 25f)
+        if (zForce > 80f)
         {
             //We need three vectors to form the bezier curve. The starting point (which is where the ball was at the end of the user's touch)
             Vector2 curveStartVector = swipeEndPosition;
@@ -580,7 +589,7 @@ public class BallScript : MonoBehaviour
                         curveMiddleVectorFactor /= 2;
                     }
                     curveEndVectorFactor = 10 * swipeEndPositionPercentage;
-                    isMiddleValueLimited = false;                  
+                    isMiddleValueLimited = false;
                 }
                 float xMiddleValue = curveStartVector.x + (xOffset + (xAxisDifference * curveMiddleVectorFactor * curveFactorOffset)) * zForceOffset;
                 curveMiddleVector = new Vector2(
@@ -607,11 +616,6 @@ public class BallScript : MonoBehaviour
                     }
                     curveEndVectorFactor = 10 * swipeEndPositionPercentage;
                     isMiddleValueLimited = false;
-
-                    //curveEndVectorFactor = 20 / 4;
-                    //isMiddleValueLimited = false;
-                    //curveMiddleVectorFactor /= 4;
-                    //lastCurveForceDividend *= -1.5f;
                 }
                 float xMiddleValue = curveStartVector.x + (xOffset - (xAxisDifference * curveMiddleVectorFactor * curveFactorOffset)) * zForceOffset;
                 curveMiddleVector = new Vector2(
@@ -640,7 +644,7 @@ public class BallScript : MonoBehaviour
             leftVectorText.text = "curveStart: " + curveStartVector.ToString();
             rightVectorText.text = "curveMiddle: " + curveMiddleVector.ToString();
             endVectorText.text = "curveEnd: " + curveEndVector.ToString();
-            
+
             endForceToApply = curveEndVector.x - curveMiddleVector.x;
 
             this.SetQuadraticCuvedBallData(
@@ -650,7 +654,10 @@ public class BallScript : MonoBehaviour
             );
         }
         else
+        {
             isBallThrowCurved = false;
+            this.AddForceToBall(this.CalculateXForceForShot(zForce), 0f, 0f);
+        }
     }
 
     // Method to do a shot based on the overallSwipeDirection
