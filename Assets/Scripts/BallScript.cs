@@ -112,11 +112,11 @@ public class BallScript : MonoBehaviour
     private TrailRenderer trailRenderer;
 
     // Constat that helps make a curved effect last longer. The bigger the value, the less the curved effect will last
-    private const float CURVE_TIME_MODIFIER = 0.285f;
+    private const float CURVE_TIME_MODIFIER = 0.3f;
     // A bezier curve's time can (idealy) be only from 0 to 1. This constant specifies the delimitation for said curve
-    private const float BEZIER_CURVE_TIME_LIMIT = 1.25f;
+    private const float BEZIER_CURVE_TIME_LIMIT = 1.3f;
     // Const that serves as a dividend for the count of circles drawn. The bigger the value, the less curved the effect will be per circle drawn
-    private const float CIRCLE_COUNT_DIVIDEND = 8f;
+    private const float CIRCLE_COUNT_DIVIDEND = 13f;
     // Constant that will indicate how strong the shot is in the X axis. The greater the value, the strongest the shot
     private const float THROW_FORCE_X = 0.38f;
     // Constant that will indicate how strong the shot is in the Y axis. The greater the value, the strongest the shot
@@ -558,27 +558,43 @@ public class BallScript : MonoBehaviour
             circlesRegistered = circlesRegistered <= MAX_CURVE_FACTOR ? circlesRegistered : MAX_CURVE_FACTOR;
             float curveFactorOffset = circlesRegistered / CIRCLE_COUNT_DIVIDEND;
             float xAxisDifference = Math.Abs(swipeStartPosition.x - curveStartVector.x);
-            float distanceBetweenSwipeAndCameraCenter = (swipeEndPosition.x - Camera.main.pixelWidth / 2);
+            float distanceBetweenSwipeAndCameraCenter = (swipeEndPosition.x - Camera.main.pixelWidth / 2) / Camera.main.pixelWidth;
 
-            float xOffset = distanceBetweenSwipeAndCameraCenter * X_OFFSET_CURVE_MULTIPLER / Camera.main.pixelWidth ;
-            lastCurveForceDividend = distanceBetweenSwipeAndCameraCenter/Camera.main.pixelWidth <= 0.35f ? 5f : 0.3f;
-
+            float xOffset = distanceBetweenSwipeAndCameraCenter * X_OFFSET_CURVE_MULTIPLER;
+            lastCurveForceDividend = Math.Abs(distanceBetweenSwipeAndCameraCenter) <= 0.35f ? 5f : 0.3f;
+            float curveEndVectorFactor = 0.08f;
+            float curveMiddleVectorFactor = 8;
+            bool isMiddleValueLimited = true;
 
             // If the shot direction is to the right, we set the middle of the curve torwards the right
             if (isShotDirectionToTheRight)
             {
-                float xMiddleValue = curveStartVector.x + (xOffset + (xAxisDifference * 8f * curveFactorOffset));
+                if (isCurveEffectToTheRight)
+                {
+                    curveEndVectorFactor = 20/2;
+                    isMiddleValueLimited = false;
+                    curveMiddleVectorFactor /= 2;
+                    lastCurveForceDividend *= -1.25f;
+                }
+                float xMiddleValue = curveStartVector.x + (xOffset + (xAxisDifference * curveMiddleVectorFactor * curveFactorOffset));
                 curveMiddleVector = new Vector2(
-                    xMiddleValue < curveStartVector.x ? curveStartVector.x : xMiddleValue,
+                    xMiddleValue < curveStartVector.x && isMiddleValueLimited ? curveStartVector.x : xMiddleValue,
                     curveStartVector.y + ((curveStartVector.y - swipeStartPosition.y) * MIDDLE_CURVE_Z_FACTOR)
                 );
             }
             // If the shot direction is to the left, we set the middle of the curve torwards the left
             else
             {
-                float xMiddleValue = curveStartVector.x + (xOffset - (xAxisDifference * 8f * curveFactorOffset));
+                if (!isCurveEffectToTheRight)
+                {
+                    curveEndVectorFactor = 20 / 2;
+                    isMiddleValueLimited = false;
+                    curveMiddleVectorFactor /= 2;
+                    lastCurveForceDividend *= -1.25f;
+                }
+                float xMiddleValue = curveStartVector.x + (xOffset - (xAxisDifference * curveMiddleVectorFactor * curveFactorOffset));
                 curveMiddleVector = new Vector2(
-                    xMiddleValue > curveStartVector.x ? curveStartVector.x : xMiddleValue,
+                    xMiddleValue > curveStartVector.x && isMiddleValueLimited ? curveStartVector.x : xMiddleValue,
                     curveStartVector.y + ((curveStartVector.y - swipeStartPosition.y) * MIDDLE_CURVE_Z_FACTOR)
                 );
             }
@@ -586,14 +602,14 @@ public class BallScript : MonoBehaviour
             if (isCurveEffectToTheRight)
             {
                 curveEndVector = new Vector2(
-                    curveMiddleVector.x + (xAxisDifference * 0.08f * curveFactorOffset /*+ Math.Abs(xOffset)*/),
+                    curveMiddleVector.x + (xAxisDifference * curveEndVectorFactor * curveFactorOffset /*+ Math.Abs(xOffset)*/),
                     curveStartVector.y + ((curveStartVector.y - swipeStartPosition.y) * END_CURVE_Z_FACTOR)
                 );
             }
             else
             {
                 curveEndVector = new Vector2(
-                    curveMiddleVector.x - (xAxisDifference * 0.08f * curveFactorOffset /*- Math.Abs(xOffset)*/),
+                    curveMiddleVector.x - (xAxisDifference * curveEndVectorFactor * curveFactorOffset /*- Math.Abs(xOffset)*/),
                     curveStartVector.y + ((curveStartVector.y - swipeStartPosition.y) * END_CURVE_Z_FACTOR)
                 );
             }
