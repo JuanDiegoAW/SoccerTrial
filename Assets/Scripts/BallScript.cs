@@ -556,6 +556,7 @@ public class BallScript : MonoBehaviour
             float distanceBetweenSwipeAndCameraCenter = (swipeEndPosition.x - Camera.main.pixelWidth / 2) / Camera.main.pixelWidth;
             float zForceOffset = zForce / MAX_Z_FORCE_ALLOWED;
             float xOffset = distanceBetweenSwipeAndCameraCenter * X_OFFSET_CURVE_MULTIPLER;
+
             lastCurveForceDividend = Math.Abs(distanceBetweenSwipeAndCameraCenter) <= 0.35f ? 5f : 0.3f;
             float curveEndVectorFactor = 0.08f;
             float curveMiddleVectorFactor = 8;
@@ -566,11 +567,11 @@ public class BallScript : MonoBehaviour
             {
                 if (isCurveEffectToTheRight)
                 {
-                    lastCurveForceDividend *= -1.5f;
-                    float swipeEndPositionPercentage = swipeEndPosition.x * 2 / Camera.main.pixelWidth;
+                    lastCurveForceDividend *= -1.7f;
+                    float swipeEndPositionPercentage = swipeEndPosition.x * 2f / Camera.main.pixelWidth;
                     if (swipeEndPositionPercentage >= 0.5f)
                     {
-                        swipeEndPositionPercentage *= 4f;
+                        swipeEndPositionPercentage *= 5f;
                         curveMiddleVectorFactor *= 2.5f;
                         lastCurveForceDividend *= 0.8f;
                     }
@@ -578,7 +579,7 @@ public class BallScript : MonoBehaviour
                     {
                         curveMiddleVectorFactor /= 2;
                     }
-                    curveEndVectorFactor = 20/2 * swipeEndPositionPercentage;
+                    curveEndVectorFactor = 10 * swipeEndPositionPercentage;
                     isMiddleValueLimited = false;                  
                 }
                 float xMiddleValue = curveStartVector.x + (xOffset + (xAxisDifference * curveMiddleVectorFactor * curveFactorOffset)) * zForceOffset;
@@ -592,10 +593,25 @@ public class BallScript : MonoBehaviour
             {
                 if (!isCurveEffectToTheRight)
                 {
-                    curveEndVectorFactor = 20 / 4;
+                    lastCurveForceDividend *= -1.7f;
+                    float swipeEndPositionPercentage = (Camera.main.pixelWidth - swipeEndPosition.x) * 2f / Camera.main.pixelWidth;
+                    if (swipeEndPositionPercentage >= 0.5f)
+                    {
+                        swipeEndPositionPercentage *= 5f;
+                        curveMiddleVectorFactor *= 2.5f;
+                        lastCurveForceDividend *= 0.8f;
+                    }
+                    else
+                    {
+                        curveMiddleVectorFactor *= 2;
+                    }
+                    curveEndVectorFactor = 10 * swipeEndPositionPercentage;
                     isMiddleValueLimited = false;
-                    curveMiddleVectorFactor /= 4;
-                    lastCurveForceDividend *= -1.5f;
+
+                    //curveEndVectorFactor = 20 / 4;
+                    //isMiddleValueLimited = false;
+                    //curveMiddleVectorFactor /= 4;
+                    //lastCurveForceDividend *= -1.5f;
                 }
                 float xMiddleValue = curveStartVector.x + (xOffset - (xAxisDifference * curveMiddleVectorFactor * curveFactorOffset)) * zForceOffset;
                 curveMiddleVector = new Vector2(
@@ -607,14 +623,14 @@ public class BallScript : MonoBehaviour
             if (isCurveEffectToTheRight)
             {
                 curveEndVector = new Vector2(
-                    curveMiddleVector.x + (xAxisDifference * curveEndVectorFactor * curveFactorOffset /*+ Math.Abs(xOffset)*/) * zForceOffset,
+                    curveMiddleVector.x + (xAxisDifference * curveEndVectorFactor * curveFactorOffset) * zForceOffset,
                     curveStartVector.y + ((curveStartVector.y - swipeStartPosition.y) * END_CURVE_Z_FACTOR)
                 );
             }
             else
             {
                 curveEndVector = new Vector2(
-                    curveMiddleVector.x - (xAxisDifference * curveEndVectorFactor * curveFactorOffset /*- Math.Abs(xOffset)*/) * zForceOffset,
+                    curveMiddleVector.x - (xAxisDifference * curveEndVectorFactor * curveFactorOffset) * zForceOffset,
                     curveStartVector.y + ((curveStartVector.y - swipeStartPosition.y) * END_CURVE_Z_FACTOR)
                 );
             }
